@@ -1,0 +1,174 @@
+---
+# This AWS CloudFormation template
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  This example template demonstrates creating an Auto Scaling group with a specified
+  number of EC2 instances with UserData that initializes the instances. In this case, 
+  the UserData calls the cfn-init.exe command, which uses the default configSet to initialize
+  the instances.
+Parameters:
+  pApplicationName:
+    Description: The name of the application
+    Type: String
+
+  pInstanceRole:
+    Description: The ARN for the AWS IAM role that has read access to the archive file key specified
+    Type: String
+    # AllowedPattern: "arn:aws:iam::[0-9]{12}:role/.+"
+    AllowedPattern: "[a-zA-Z]+"
+    ConstraintDescription: Value must be a valid IAM ARN (Amazon Resource Name)
+
+  pSshKeyName:
+    Description: The SSH key to use to access the machine
+    Type: AWS::EC2::KeyPair::KeyName
+    
+  pMinInstances:
+    Description: The minimum number of instances in the Auto Scaling group
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 25
+
+  pMaxInstances:
+    Description: The maximum number of instances in the Auto Scaling group
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 25
+
+  pInstanceSize:
+    Description: The size of the EC2 instance
+    Default: t3.medium
+    Type: String
+    AllowedValues:
+    - t3.nano
+    - t3.micro
+    - t3.medium
+    
+  pIncomingPort:
+    Description: The incoming port to expose in the security group
+    Type: String
+    Default: 8080
+
+Mappings:
+  RegionMap:
+    # For Amazon Linux 2, use the commented-out AMIs instead.
+    us-east-1:
+      # HVM64": "ami-035be7bafff33b6b6"
+      "HVM64": "ami-0f4c7e570f044b46f"
+    us-east-2:
+      # "HVM64": "ami-04328208f4f0cf1fe"
+      "HVM64": "ami-0aebcb5a7953a8fae"
+    us-west-1:
+      # "HVM64": "ami-0799ad445b5727125"
+      "HVM64": "ami-0caf8ef855671a2c0"
+    us-west-2:
+      # "HVM64": "ami-032509850cf9ee54e"
+      "HVM64": "ami-02bc325deb3063e61"
+
+Resources:
+
+  # The instance profile is used to map the specified role to the EC2 instances
+  # in the security group. 
+  AppInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      Path: /
+      Roles:
+        - !Ref pInstanceRole
+
+  # The wait handle can be used to make sure that the instances are properly
+  # initialized and have the time to call cfn-init.exe
+  AppLaunchConfigWaitHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+
+  AppWaitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    Properties:
+      Handle: !Ref AppLaunchConfigWaitHandle
+      # Timeout of 5 minutes. Change this to a higher value if more work is
+      # added to the cfn-init process to it doesn't time out.
+      Timeout: "600"
+
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "${pApplicationName} instance security group"
+      SecurityGroupIngress:
+      - IpProtocol: "tcp"
+        FromPort: !Ref pIncomingPort
+        ToPort: !Ref pIncomingPort
+        CidrIp: "0.0.0.0/0"
+        # Specify additional ports here.
+      # - IpProtocol: "tcp"
+      #   FromPort: 22
+      #   ToPort: 22
+      #   CidrIp: "0.0.0.0/0"
+
+  # The launch configuration contains the details about how instances should be created
+  # in the auto scaling group that is defined later in the template. The launch configuration
+  # uses cfn-init to do the heavy lifting in the initialization, and UserData basically just
+  # calls cfn-init.exe and then cfn-signal.exe when the init is finished.
+  AppLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Metadata:
+      "AWS::CloudFormation::Init":
+        configSets:
+          default: 
+            - initialize
+        initialize:
+          files:
+            "c:\\cfn\\cfn-hup.conf":
+              content: !Sub |
+                [main]
+                stack=${AWS::StackName}
+                region=${AWS::Region}
+            "c:\\cfn\\hooks.d\\cfn-auto-reloader.conf":
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.AppLaunchConfig.Metadata.AWS::CloudFormation::Init
+                action=cfn-init.exe -v -s ${AWS::StackName} -r AppLaunchConfig --region ${AWS::Region} 
+
+    Properties:
+      ImageId: !FindInMap [ "RegionMap", !Ref "AWS::Region", "HVM64" ]
+      InstanceType: !Ref pInstanceSize
+      BlockDeviceMappings:
+        # Pulled the device Exnames from https://docs.aws.amazon.com/AWSEC2/latest/WindowsGuide/device_naming.html
+        - DeviceName: "xvdf"
+          # Look at the mapping here: https://docs.aws.amazon.com/AWSEC2/latest/WindowsGuide/ec2launch.html#ec2launch-mapping
+          Ebs:
+            VolumeSize: 50
+      IamInstanceProfile: !Ref AppInstanceProfile 
+      SecurityGroups:
+      - !Ref AppSecurityGroup
+      KeyName: !Ref pSshKeyName
+      UserData: 
+        "Fn::Base64":
+          "Fn::Join":
+            - ""
+            - 
+              - "<script>"
+              - "cfn-init.exe -v -s "
+              - !Ref "AWS::StackName"
+              - " -r AppLaunchConfig "
+              - "--region "
+              - !Ref "AWS::Region"
+              - "\n"
+              - "cfn-signal.exe -e %ERRORLEVEL% "
+              - "Fn::Base64": !Ref AppLaunchConfigWaitHandle
+              - "\n"
+              - </script>
+
+  # The auto scaling group
+  # TODO: Do a better job here of providing health checks and policies.
+  AppAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      LaunchConfigurationName: !Ref AppLaunchConfig
+      MinSize: !Ref pMinInstances
+      MaxSize: !Ref pMaxInstances
+      AvailabilityZones: 
+        "Fn::GetAZs": !Ref "AWS::Region"
+
+Outputs: {}
