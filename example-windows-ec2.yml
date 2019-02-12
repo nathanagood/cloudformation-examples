@@ -129,12 +129,18 @@ Resources:
                 triggers=post.update
                 path=Resources.AppLaunchConfig.Metadata.AWS::CloudFormation::Init
                 action=cfn-init.exe -v -s ${AWS::StackName} -r AppLaunchConfig --region ${AWS::Region} 
+            # Read about this configuration file and the PowerShell script that is used later
+            # at https://docs.amazonaws.cn/en_us/AWSEC2/latest/WindowsGuide/ec2launch.html#ec2launch-sysprep
             "C:\\ProgramData\\Amazon\\EC2-Windows\\Launch\\Config\\DriveLetterMappingConfig.json":
               content: |
                 {
                   "driveLetterMapping": [
                     {
                       "volumeName": "xvdf",
+                      "driveLetter": "D"
+                    },
+                    {
+                      "volumeName": "xvdg",
                       "driveLetter": "E"
                     }
                   ]
@@ -154,6 +160,10 @@ Resources:
           # Look at the mapping here: https://docs.aws.amazon.com/AWSEC2/latest/WindowsGuide/ec2launch.html#ec2launch-mapping
           Ebs:
             VolumeSize: 50
+        - DeviceName: "xvdg"
+          # Look at the mapping here: https://docs.aws.amazon.com/AWSEC2/latest/WindowsGuide/ec2launch.html#ec2launch-mapping
+          Ebs:
+            VolumeSize: 100
       IamInstanceProfile: !Ref AppInstanceProfile 
       SecurityGroups:
       - !Ref AppSecurityGroup
