@@ -55,7 +55,7 @@ Mappings:
     # For Amazon Linux 2, use the commented-out AMIs instead.
     us-east-1:
       # HVM64": "ami-035be7bafff33b6b6"
-      "HVM64": "ami-0f4c7e570f044b46f"
+      "HVM64": "ami-07a29e78aeb420471"
     us-east-2:
       # "HVM64": "ami-04328208f4f0cf1fe"
       "HVM64": "ami-0aebcb5a7953a8fae"
@@ -100,10 +100,10 @@ Resources:
         ToPort: !Ref pIncomingPort
         CidrIp: "0.0.0.0/0"
         # Specify additional ports here.
-      # - IpProtocol: "tcp"
-      #   FromPort: 22
-      #   ToPort: 22
-      #   CidrIp: "0.0.0.0/0"
+      - IpProtocol: "tcp"
+        FromPort: 3389
+        ToPort: 3389
+        CidrIp: "172.31.33.20/32"
 
   # The launch configuration contains the details about how instances should be created
   # in the auto scaling group that is defined later in the template. The launch configuration
@@ -129,6 +129,21 @@ Resources:
                 triggers=post.update
                 path=Resources.AppLaunchConfig.Metadata.AWS::CloudFormation::Init
                 action=cfn-init.exe -v -s ${AWS::StackName} -r AppLaunchConfig --region ${AWS::Region} 
+            "C:\\ProgramData\\Amazon\\EC2-Windows\\Launch\\Config\\DriveLetterMappingConfig.json":
+              content: |
+                {
+                  "driveLetterMapping": [
+                    {
+                      "volumeName": "xvdf",
+                      "driveLetter": "E"
+                    }
+                  ]
+                }
+          commands:
+            "map-drives":
+              command: "powershell.exe -Command C:\\ProgramData\\Amazon\\EC2-Windows\\Launch\\Scripts\\InitializeDisks.ps1"
+              waitUntilAfterCompletion: 0
+
 
     Properties:
       ImageId: !FindInMap [ "RegionMap", !Ref "AWS::Region", "HVM64" ]
