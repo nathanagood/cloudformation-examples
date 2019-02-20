@@ -2,10 +2,9 @@
 # This AWS CloudFormation template
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  This example template demonstrates creating an Auto Scaling group with a specified
-  number of EC2 instances with UserData that initializes the instances. In this case, 
-  the UserData calls the cfn-init.exe command, which uses the default configSet to initialize
-  the instances.
+  This example template demonstrates creating a single EC2 instance with UserData that 
+  initializes the instances. In this case, the UserData calls cfn-init, which uses 
+  the default configSet to initialize the instance.
 Parameters:
 
   pEC2InstanceName:
@@ -28,13 +27,21 @@ Parameters:
     
   pInstanceSize:
     Description: The size of the EC2 instance
-    Default: t3.medium
+    Default: t2.micro
     Type: String
     AllowedValues:
+    - t2.micro
     - t3.nano
     - t3.micro
     - t3.medium
     - m5.large
+
+  pLinuxType:
+    Description: The name of the Linux that should be launched with this template
+    Type: String
+    Default: "Amazon"
+    AllowedValues:
+      - Amazon
 
   # TODO: Uncomment out this if there ends up being other resources in this
   # template that require the VPC ID.
@@ -53,13 +60,13 @@ Parameters:
 Mappings:
   RegionMap:
     us-east-1:
-      "HVM64": "ami-07a29e78aeb420471"
+      "Amazon": "ami-035be7bafff33b6b6"
     us-east-2:
-      "HVM64": "ami-0aebcb5a7953a8fae"
+      "Amazon": "ami-04328208f4f0cf1fe"
     us-west-1:
-      "HVM64": "ami-0caf8ef855671a2c0"
+      "Amazon": "ami-0799ad445b5727125"
     us-west-2:
-      "HVM64": "ami-02bc325deb3063e61"
+      "Amazon": "ami-032509850cf9ee54e"
 
 Resources:
 
@@ -78,48 +85,19 @@ Resources:
 
   EC2Instance:
     Type: "AWS::EC2::Instance"
-    # The launch configuration contains the details about how instances should be created
-    # in the auto scaling group that is defined later in the template. The launch configuration
-    # uses cfn-init to do the heavy lifting in the initialization, and UserData basically just
-    # calls cfn-init.exe and then cfn-signal.exe when the init is finished.
     Metadata:
       "AWS::CloudFormation::Init":
         configSets:
           default: 
             - initialize
         initialize:
-          files:
-            "c:\\cfn\\cfn-hup.conf":
-              content: !Sub |
-                [main]
-                stack=${AWS::StackName}
-                region=${AWS::Region}
-            "c:\\cfn\\hooks.d\\cfn-auto-reloader.conf":
-              content: !Sub |
-                [cfn-auto-reloader-hook]
-                triggers=post.update
-                path=Resources.EC2Instance.Metadata.AWS::CloudFormation::Init
-                action=cfn-init.exe -v -s ${AWS::StackName} -r EC2Instance --region ${AWS::Region} 
-            # Read about this configuration file and the PowerShell script that is used later
-            # at https://docs.amazonaws.cn/en_us/AWSEC2/latest/WindowsGuide/ec2launch.html#ec2launch-sysprep
-            "C:\\ProgramData\\Amazon\\EC2-Windows\\Launch\\Config\\DriveLetterMappingConfig.json":
-              content: |
-                {
-                  "driveLetterMapping": [
-                    {
-                      "volumeName": "xvdf",
-                      "driveLetter": "D"
-                    }
-                  ]
-                }
           commands:
-            "map-drives":
-              command: "powershell.exe -Command C:\\ProgramData\\Amazon\\EC2-Windows\\Launch\\Scripts\\InitializeDisks.ps1"
+            "hello-world":
+              command: "echo \"hello, world\""
               waitUntilAfterCompletion: 0
 
-
     Properties:
-      ImageId: !FindInMap [ "RegionMap", !Ref "AWS::Region", "HVM64" ]
+      ImageId: !FindInMap [ "RegionMap", !Ref "AWS::Region", !Ref "pLinuxType" ]
       InstanceType: !Ref pInstanceSize
       IamInstanceProfile: !Ref pInstanceProfile 
       SecurityGroupIds: !Ref pEC2SecurityGroupIds
@@ -137,17 +115,17 @@ Resources:
           "Fn::Join":
             - ""
             - 
-              - "<script>"
-              - "cfn-init.exe -v -s "
+              - "#!/usr/bin/env bash\n"
+              - "yum update -y -q\n"
+              - "/opt/aws/bin/cfn-init -v --stack "
               - !Ref "AWS::StackName"
-              - " -r EC2Instance "
+              - " --resource EC2Instance "
               - "--region "
               - !Ref "AWS::Region"
               - "\n"
-              - "cfn-signal.exe -e %ERRORLEVEL% "
+              - "/opt/aws/bin/cfn-signal -e $? "
               - "Fn::Base64": !Ref AppLaunchConfigWaitHandle
               - "\n"
-              - </script>
 
 Outputs: 
   InstanceIPAddress:
