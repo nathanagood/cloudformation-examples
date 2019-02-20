@@ -125,6 +125,12 @@ Resources:
       SecurityGroupIds: !Ref pEC2SecurityGroupIds
       KeyName: !Ref pSshKeyName
       SubnetId: !Ref pSubnetId
+      BlockDeviceMappings:
+        # Pulled the device Exnames from https://docs.aws.amazon.com/AWSEC2/latest/WindowsGuide/device_naming.html
+        - DeviceName: "xvdf"
+          # Look at the mapping here: https://docs.aws.amazon.com/AWSEC2/latest/WindowsGuide/ec2launch.html#ec2launch-mapping
+          Ebs:
+            VolumeSize: 50
       Tags:
         -
           Key: Name
