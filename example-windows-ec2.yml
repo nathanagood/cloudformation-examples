@@ -162,3 +162,9 @@ Outputs:
   InstanceHostName:
     Description: The hostname (public) of the EC2 instance that was created
     Value: !Sub ${EC2Instance.PublicDnsName}
+  InstancePrivateIPAddress:
+    Description: The IP address of the instance that was created
+    Value: !Sub ${EC2Instance.PrivateIp}
+  InstancePrivateHostName:
+    Description: The hostname (public) of the EC2 instance that was created
+    Value: !Sub ${EC2Instance.PrivateDnsName}

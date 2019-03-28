@@ -42,6 +42,8 @@ Parameters:
     Default: "Amazon"
     AllowedValues:
       - Amazon
+      - Ubuntu
+      - Ubuntu16
 
   # TODO: Uncomment out this if there ends up being other resources in this
   # template that require the VPC ID.
@@ -61,6 +63,8 @@ Mappings:
   RegionMap:
     us-east-1:
       "Amazon": "ami-035be7bafff33b6b6"
+      "Ubuntu": "ami-0ac019f4fcb7cb7e6"
+      "Ubuntu16": "ami-0f9cf087c1f27d9b1"
     us-east-2:
       "Amazon": "ami-04328208f4f0cf1fe"
     us-west-1:
@@ -116,7 +120,7 @@ Resources:
             - ""
             - 
               - "#!/usr/bin/env bash\n"
-              - "yum update -y -q\n"
+              # - "yum update -y -q\n"
               - "/opt/aws/bin/cfn-init -v --stack "
               - !Ref "AWS::StackName"
               - " --resource EC2Instance "
@@ -134,3 +138,9 @@ Outputs:
   InstanceHostName:
     Description: The hostname (public) of the EC2 instance that was created
     Value: !Sub ${EC2Instance.PublicDnsName}
+  InstancePrivateIPAddress:
+    Description: The IP address of the instance that was created
+    Value: !Sub ${EC2Instance.PrivateIp}
+  InstancePrivateHostName:
+    Description: The hostname (public) of the EC2 instance that was created
+    Value: !Sub ${EC2Instance.PrivateDnsName}
