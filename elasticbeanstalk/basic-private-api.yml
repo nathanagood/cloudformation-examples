@@ -20,14 +20,14 @@ Parameters:
     Description: The IDs of the security groups that have access to the instances
 
   MinInstanceCount:
-    Type: Number
+    Type: String
     Description: The minimum number of instances in the auto scaling cluster
-    Default: 1
+    Default: "1"
 
   MaxInstanceCount:
-    Type: Number
+    Type: String
     Description: The maximum number of instances in the auto scaling cluster
-    Default: 1
+    Default: "1"
 
   ApplicationName:
     Type: String
@@ -50,6 +50,10 @@ Parameters:
     Type: String
     Description: The name of the IAM instance profile to use for the EC2 instances.
 
+  EC2InstanceType:
+    Type: String
+    Description: The type (size) of the EC2 instance in the ElasticBeanstalk environment.
+
 Outputs:
 
   EndpointUrl:
@@ -63,7 +67,8 @@ Resources:
     Properties:
       ApplicationName: !Ref ApplicationName
       EnvironmentName: !Ref EnvironmentName
-      Description: !Sub "${Runtime} ${EnvironmentName} environment for application ${ApplicationName}"
+      Description: !Sub "${EnvironmentName} environment for application ${ApplicationName}"
+      SolutionStackName: !Ref Runtime
       OptionSettings:
 
         - Namespace: "aws:autoscaling:launchconfiguration"
@@ -76,7 +81,7 @@ Resources:
 
         - Namespace: "aws:autoscaling:launchconfiguration"
           OptionName: "SecurityGroups"
-          Value: !Ref AccessedBySecurityGroupIds
+          Value: !Join [ ",", !Ref AccessedBySecurityGroupIds ]
 
         - Namespace: "aws:autoscaling:asg"
           OptionName: "MinSize"
@@ -88,11 +93,11 @@ Resources:
 
         - Namespace: "aws:ec2:vpc"
           OptionName: "VPCId"
-          Value: !Ref VPCId
+          Value: !Sub "${VPCId}"
           
         - Namespace: "aws:ec2:vpc"
           OptionName: "Subnets"
-          Value: !Join [ ',', !Ref PrivateInstanceSubnets ]
+          Value: !Join [ ",", !Ref PrivateInstanceSubnets ]
 
         - Namespace: "aws:ec2:vpc"
           OptionName: "ELBScheme"
@@ -103,9 +108,10 @@ Resources:
           Value: "false"
 
         - Namespace: "aws:elasticbeanstalk:application"
-          OptionName: "ApplicationHealthcheckURL"
+          OptionName: "Application Healthcheck URL"
           Value: "/executor/info"
 
         - Namespace: "aws:elasticbeanstalk:environment"
           OptionName: "LoadBalancerType"
           Value: "application"
+
